@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRO - Your AI Chatbot Buddy</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        /* AI Inspired Theme */
+        :root {
+            --bg-light: #f0f2f5;
+            --bg-dark: #1a1d24;
+            --chat-light: #ffffff;
+            --chat-dark: #2c2f36;
+            --text-light: #222;
+            --text-dark: #eee;
+            --highlight: #6c5ce7;
+        }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-light);
+            display: flex;
+            height: 100vh;
+            transition: background 0.4s ease;
+        }
+        .dark-mode {
+            background: var(--bg-dark);
+        }
+        .sidebar {
+            width: 260px;
+            background: var(--highlight);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-shadow: 3px 0 15px rgba(0,0,0,0.2);
+        }
+        .sidebar h2 { margin: 0 0 20px; }
+        .history { flex-grow: 1; overflow-y: auto; }
+        .history p { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin: 5px 0; }
+        .container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            color: var(--text-light);
+            transition: color 0.4s ease;
+        }
+        .dark-mode .container { color: var(--text-dark); }
+        .chat {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat p { max-width: 70%; margin: 5px 0; padding: 12px; border-radius: 14px; }
+        .chat p.user { align-self: flex-end; background: var(--highlight); color: white; }
+        .chat p.bro { align-self: flex-start; background: var(--chat-light); }
+        .dark-mode .chat p.bro { background: var(--chat-dark); }
+        .input-bar {
+            display: flex;
+            padding: 15px;
+            background: var(--chat-light);
+            border-top: 1px solid #ccc;
+        }
+        .dark-mode .input-bar { background: var(--chat-dark); border-color: #444; }
+        .input-bar input {
+            flex-grow: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            margin-right: 10px;
+        }
+        .input-bar button {
+            background: var(--highlight);
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            border-bottom: 1px solid #ccc;
+            background: var(--chat-light);
+        }
+        .dark-mode .topbar { background: var(--chat-dark); border-color: #444; }
+        .toggle { cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="sidebar">
+    <h2>Chat History</h2>
+    <div class="history" id="history"></div>
+</div>
+<div class="container">
+    <div class="topbar">
+        <span>BRO - Your AI Buddy</span>
+        <span class="toggle" onclick="toggleTheme()">🌓</span>
+    </div>
+    <div class="chat" id="chat"></div>
+    <div class="input-bar">
+        <input type="file" id="fileInput" accept="application/pdf, text/plain" onchange="loadFile(event)">
+        <input type="text" id="userInput" placeholder="Ask something...">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<script>
+    let dark = false;
+    let extractedText = "";
+
+    document.addEventListener("DOMContentLoaded", function() {
+        let name = prompt("Welcome! Enter your name to chat with BRO:");
+        let contact = prompt("Enter your contact number:");
+        document.getElementById("history").innerHTML += `<p>BRO: Welcome ${name}! Remember, you're doing great! 🚀</p>`;
+    });
+
+    function toggleTheme() {
+        dark = !dark;
+        document.body.classList.toggle("dark-mode", dark);
+    }
+
+    function sendMessage() {
+        const input = document.getElementById("userInput");
+        const text = input.value.trim();
+        if (!text) return;
+
+        appendChat("user", text);
+        input.value = "";
+
+        // Basic math solver
+        if (/^\d+\s*[+\-*/]\s*\d+$/.test(text)) {
+            try {
+                let result = eval(text);
+                reply(`The answer is ${result}`);
+                return;
+            } catch (e) {}
+        }
+
+        // Check extracted document
+        if (extractedText && extractedText.toLowerCase().includes(text.toLowerCase())) {
+            reply("Yes! Found in uploaded document.");
+            return;
+        }
+
+        reply("Thinking... 🤖");
+        fetchGemini(text);
+    }
+
+    function appendChat(sender, text) {
+        let chat = document.getElementById("chat");
+        let bubble = document.createElement("p");
+        bubble.className = sender;
+        bubble.innerText = (sender === "user" ? "You: " : "BRO: ") + text;
+        chat.appendChild(bubble);
+        chat.scrollTop = chat.scrollHeight;
+        document.getElementById("history").innerHTML += `<p>${bubble.innerText}</p>`;
+        speak(sender === "bro" ? text : "");
+    }
+
+    function reply(text) {
+        appendChat("bro", text);
+    }
+
+    function speak(text) {
+        if (!text) return;
+        let msg = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(msg);
+    }
+
+    function fetchGemini(prompt) {
+        if (location.protocol === 'file:') {
+            reply("Sorry, Gemini API only works when hosted on HTTPS.");
+            return;
+        }
+
+        fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=AIzaSyBhP2AJNDJxJRJ9xR2uk6nFAd2CO3oQWV0", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        })
+        .then(res => res.json())
+        .then(data => {
+            let output = data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn’t fetch an answer.";
+            reply(output);
+        })
+        .catch(() => reply("Error connecting to Gemini."));
+    }
+
+    function loadFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (file.type === "application/pdf") {
+            let reader = new FileReader();
+            reader.onload = function() {
+                let typedarray = new Uint8Array(this.result);
+                pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                    let totalPages = pdf.numPages;
+                    let textPromises = [];
+                    for (let i = 1; i <= totalPages; i++) {
+                        textPromises.push(pdf.getPage(i).then(page => page.getTextContent()).then(tc => tc.items.map(i => i.str).join(" ")));
+                    }
+                    Promise.all(textPromises).then(texts => {
+                        extractedText = texts.join(" ");
+                        reply("Document loaded! You can now ask me about it.");
+                    });
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        } else if (file.type === "text/plain") {
+            let reader = new FileReader();
+            reader.onload = e => {
+                extractedText = e.target.result;
+                reply("Text file loaded! You can now ask me about it.");
+            };
+            reader.readAsText(file);
+        } else {
+            reply("Unsupported file type! Upload a PDF or TXT.");
+        }
+    }
+</script>
+</body>
+</html>
